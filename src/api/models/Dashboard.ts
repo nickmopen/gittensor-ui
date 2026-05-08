@@ -233,6 +233,12 @@ export type MinerEvaluation = {
   lifetimeAlpha?: number;
   lifetimeTao?: number;
   lifetimeUsd?: number;
+  // Metagraph fields (from /miners endpoint)
+  metagraphRank?: number;
+  metagraphTrust?: number;
+  metagraphConsensus?: number;
+  metagraphIncentive?: number;
+  metagraphEmission?: number;
 };
 
 export type GithubMinerData = {
