@@ -2519,6 +2519,7 @@ const buildBountyColumns = (): DataTableColumn<
 ];
 
 const BountiesList: React.FC<{ itemKeys: string[] }> = ({ itemKeys }) => {
+  const theme = useTheme();
   const { data: allIssues, isLoading } = useIssues();
   const { taoPrice, alphaPrice } = usePrices();
   const sidebarFixedRight = useWatchlistSidebarFixedRight();
@@ -2534,6 +2535,7 @@ const BountiesList: React.FC<{ itemKeys: string[] }> = ({ itemKeys }) => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<BountyStatusFilter>('all');
+  const [showChart, setShowChart] = useState(false);
   const [viewMode, setViewMode] = useWatchlistViewMode();
   const [page, setPage] = useState(0);
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -2647,6 +2649,99 @@ const BountiesList: React.FC<{ itemKeys: string[] }> = ({ itemKeys }) => {
     return () => observer.disconnect();
   }, [sidebarFixedRight, page, filtered.length]);
 
+  const chartOption = useMemo(() => {
+    const repoTotals = new Map<string, number>();
+    filtered.forEach((issue) => {
+      const amount = parseFloat(issue.targetBounty ?? '0') || 0;
+      repoTotals.set(
+        issue.repositoryFullName,
+        (repoTotals.get(issue.repositoryFullName) || 0) + amount,
+      );
+    });
+    const chartSorted = [...repoTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20);
+    const white = theme.palette.common.white;
+    const textColor = alpha(white, 0.85);
+    const gridColor = theme.palette.border.subtle;
+    const chartFont = echartsFontFamily(theme);
+
+    return {
+      backgroundColor: 'transparent',
+      title: {
+        text: 'Bounty Pool by Repository',
+        subtext: `${filtered.length} issues`,
+        left: 'center',
+        top: 20,
+        textStyle: {
+          color: theme.palette.text.primary,
+          fontFamily: chartFont,
+          fontSize: 16,
+          fontWeight: 600,
+        },
+        subtextStyle: {
+          color: alpha(white, TEXT_OPACITY.tertiary),
+          fontFamily: chartFont,
+          fontSize: 12,
+        },
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        ...echartsAxisTooltipChrome(theme),
+        formatter: (params: TooltipComponentFormatterCallbackParams) => {
+          const p = Array.isArray(params) ? params[0] : params;
+          return `${p.name}: ${Number(p.value).toFixed(4)} ل`;
+        },
+      },
+      grid: {
+        left: '3%',
+        right: '3%',
+        bottom: '15%',
+        top: '20%',
+        containLabel: true,
+      },
+      xAxis: {
+        type: 'category',
+        data: chartSorted.map(([repo]) => repo.split('/')[1] || repo),
+        axisLabel: {
+          color: textColor,
+          fontFamily: chartFont,
+          rotate: 45,
+          interval: 0,
+        },
+        axisLine: { lineStyle: { color: gridColor } },
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Bounty (α)',
+        nameTextStyle: { color: textColor, fontFamily: chartFont },
+        axisLabel: { color: textColor, fontFamily: chartFont },
+        splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
+      },
+      series: [
+        {
+          data: chartSorted.map(([, v]) => v),
+          type: 'bar',
+          itemStyle: {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: theme.palette.primary.main },
+                { offset: 1, color: theme.palette.status.info },
+              ],
+            },
+            borderRadius: [4, 4, 0, 0],
+          },
+        },
+      ],
+    };
+  }, [filtered, theme]);
+
   return (
     <Card
       elevation={0}
@@ -2757,6 +2852,36 @@ const BountiesList: React.FC<{ itemKeys: string[] }> = ({ itemKeys }) => {
                 </Tooltip>
               </Box>
             }
+            extraContent={
+              <Box>
+                <OptionsLabel>Chart</OptionsLabel>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Tooltip title={showChart ? 'Hide Chart' : 'Show Chart'}>
+                    <IconButton
+                      onClick={() => setShowChart((v) => !v)}
+                      size="small"
+                      sx={{
+                        color: showChart ? 'text.primary' : 'text.tertiary',
+                        border: '1px solid',
+                        borderColor: 'border.light',
+                        borderRadius: 2,
+                        padding: '6px',
+                        '&:hover': {
+                          backgroundColor: 'surface.light',
+                          borderColor: 'border.medium',
+                        },
+                      }}
+                    >
+                      {showChart ? (
+                        <TableChartIcon fontSize="small" />
+                      ) : (
+                        <BarChartIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Box>
+            }
             searchValue={draftValue}
             searchPlaceholder="Search bounties..."
             onSearchChange={setDraftValue}
@@ -2778,6 +2903,26 @@ const BountiesList: React.FC<{ itemKeys: string[] }> = ({ itemKeys }) => {
           />
         )}
       </DebouncedSearchInput>
+
+      <Collapse in={showChart}>
+        <Box
+          sx={{
+            p: 2,
+            borderBottom: '1px solid',
+            borderColor: 'border.light',
+            height: '500px',
+            backgroundColor: 'surface.subtle',
+          }}
+        >
+          {showChart && filtered.length > 0 && (
+            <ReactECharts
+              option={chartOption}
+              style={{ height: '100%', width: '100%' }}
+              notMerge
+            />
+          )}
+        </Box>
+      </Collapse>
 
       {viewMode === 'list' ? (
         <DataTable<IssueBounty, BountySortKey>
