@@ -425,6 +425,8 @@ const LanguageWeightsTable: React.FC = () => {
                 }}
                 sx={{
                   width: { xs: '100%', sm: '200px' },
+                  flexBasis: { xs: '100%', sm: 'auto' },
+                  order: { xs: -1, sm: 0 },
                   '& .MuiOutlinedInput-root': {
                     color: theme.palette.text.primary,
                     backgroundColor: alpha(theme.palette.common.black, 0.4),
